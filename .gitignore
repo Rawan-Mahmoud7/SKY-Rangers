@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual environments
+venv/
+.env/
+
+# Generated files
+vision_events.json
+
+# Models
+*.pt
+*.pth
+*.onnx
+
+# Embeddings
+*.faiss
+*.npz
+*.npy
+*.pkl
+
+# Logs
+runs/
+logs/
+wandb/
+
+# Datasets
+dataset/
+datasets/
+synthetic_dataset/
+
+# OS
+.DS_Store
+Thumbs.db

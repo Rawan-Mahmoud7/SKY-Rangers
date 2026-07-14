@@ -1,0 +1,187 @@
+# =============================================================================
+# Synthetic Dataset Generator Configuration
+# 188-Country Flag Recognition — ConvNeXt V2 Tiny + ArcFace
+#
+# Camera: EZVIZ H6c Pro 2K (CS-H6c-R105-1L3WF) + 12 mm M12 replacement lens
+#   Sensor dimensions (back-calculated from datasheet FOV + native 4 mm lens):
+#     sensor_w = 2 * 4 * tan(41 deg) = 6.954 mm
+#     sensor_h = 2 * 4 * tan(24 deg) = 3.562 mm
+#   Native resolution : 2304 x 1296 px  (2 K)
+#   Focal length      : 12 mm
+#   H-FOV             : 32.32 deg   V-FOV: 16.88 deg
+#   GSD @ 60 m        : 1.51 cm/px  |  @ 80 m: 2.01 cm/px
+# =============================================================================
+
+
+# --- Output Settings ---
+output:
+  base_dir: "./dataset"
+  image_format: "jpg"       # jpg produces realistic compression artefacts
+  jpeg_quality: 90          # base quality (lowered from 95 to match real footage)
+  image_size: [2304,1296]   # rendered scene (W x H) — matches sensor 16:9 aspect
+  samples_per_country: 1000     # each of 188 countries gets exactly this many images
+
+
+# --- Dataset Split ---
+split:
+  train: 0.70               # 70 % of images go to train/
+  val:   0.15               # 15 % -> val/   |  remaining 15 % -> test/
+
+
+# --- Flag Asset Structure ---
+flag_texture:
+  flags_dir: "./assets/flag_textures"
+  # Layout: flags_dir/<CountryName>/*.png
+  # Folder names are used as class labels automatically.
+  # All 188 country sub-folders are discovered at runtime.
+
+
+# --- Background Images ---
+background:
+  real_backgrounds_dir: "./assets/backgrounds"
+  # Place any number of *.jpg / *.png terrain images here.
+  # Random crops + colour jitter are applied for variety.
+
+
+# --- Physical Flag Dimensions ---
+flag:
+  width_m: 2.0              # physical flag width on the ground (metres)
+  height_m: 1.0             # physical flag height on the ground (metres)
+  aspect_ratio_jitter: 0.00 # ±5 % size jitter to cover real-world variation
+
+
+# --- Flight Envelope ---
+# Altitude is NEVER sampled below 60 m.
+flight:
+  altitude_min_m: 60        # absolute floor (enforced in code)
+  altitude_max_m: 80        # hard ceiling for the training range
+  altitude_primary_min_m: 60   # primary operating range — lower bound
+  altitude_primary_max_m: 65   # primary operating range — upper bound
+  altitude_primary_weight: 0.70  # 70 % of samples from primary range
+
+
+# --- Perspective / Camera Attitude ---
+# Camera is mounted NADIR (vertically, 0 deg pitch — straight down).
+# Only very small roll jitter is allowed to model mount imperfections.
+perspective:
+  camera_pitch_min_deg: 0.0   # nadir (do NOT set > 0 — breaks nadir assumption)
+  camera_pitch_max_deg: 0.0   # strictly nadir
+  camera_roll_min_deg: -3.0
+  camera_roll_max_deg:  3.0
+  roll_std_deg: 1.5            # Gaussian roll; clipped to ±3 deg
+
+
+# --- Detector-Crop Extractor ---
+# Simulates the imperfect bounding-box output of a real detector.
+#   margin_ratio : fraction of flag (W or H) added as border on each side
+#   offset_max   : max off-centre shift as fraction of flag size
+#   No flag truncation is ever allowed.
+crop:
+  margin_ratio_min: 0.002       # tight margin — crop stays close to the flag
+  margin_ratio_max: 0.005      # slightly larger than the flag on each side
+  offset_max_ratio: 0.0055       # small off-centre shift
+  min_px_size: 16              # reject crops smaller than this (px)
+  output_size: 224             # target classifier resolution for degradation simulation
+
+
+# --- Wind Deformation ---
+# Magnitudes are for "strong" mode; automatically scaled for "medium" / "subtle".
+wind:
+  probability: 0.0         # chance of applying wind in strong mode
+  displacement_max_pct: 0.0 # max sinusoidal displacement relative to flag size
+  wave_count_min: 0
+  wave_count_max: 0
+  corner_lift_probability: 0.0
+
+
+# --- Camera Pipeline ---
+# Ordered simulation: Optics → Motion → ISP → Environment → Sensor → Compression
+# Three tiers: subtle (30 % mag, 55 % prob)
+#              medium (65 % mag, 80 % prob)
+#              strong (100 % mag, 100 % prob)
+# Each image is randomly assigned one tier (weighted: 15 % subtle, 35 % medium, 50 % strong).
+augmentations:
+
+  # -- Optical effects --
+  defocus_blur:
+    probability: 0.50         # cheap drone lenses have significant defocus
+    sigma_min: 0.5
+    sigma_max: 2.0
+
+  chromatic_aberration:
+    probability: 0.25         # cheap M12 lenses produce lateral CA
+    shift_min: 0.002
+    shift_max: 0.008
+
+  # -- Motion effects --
+  motion_blur:
+    probability: 0.45
+    kernel_min: 3
+    kernel_max: 9
+    severe_probability: 0.05
+    severe_kernel_min: 9
+    severe_kernel_max: 15
+
+  vibration_blur:
+    probability: 0.40
+    sigma_min: 0.3
+    sigma_max: 2.0
+
+  # -- ISP effects --
+  exposure:
+    probability: 0.60
+    ev_range: 1.0             # ±1.0 EV shift
+    underexpose_bias: 0.30    # bright desert ground causes flag underexposure
+
+  white_balance:
+    probability: 0.50
+    r_min: 0.85               # per-channel gains
+    r_max: 1.15
+    g_min: 0.95
+    g_max: 1.05
+    b_min: 0.85
+    b_max: 1.15
+    warm_bias_prob: 0.40      # probability of warm desert color cast
+
+  gamma:
+    probability: 0.45
+    gamma_min: 0.7
+    gamma_max: 1.4
+
+  # -- Environment effects --
+  vignetting:
+    probability: 0.35
+    strength_min: 0.10        # corner darkening fraction
+    strength_max: 0.30
+
+  atmospheric_haze:
+    probability: 0.40
+    intensity_min: 0.05       # widened range for more variety
+    intensity_max: 0.40       # increased from 0.30
+    haze_color: [200, 190, 170]   # warm sandy haze (BGR)
+    color_variation: 25       # ± random per-channel variation
+
+  # -- Sensor effects --
+  sensor_noise:
+    probability: 0.65
+    sigma_min: 2
+    sigma_max: 12
+    shot_noise_prob: 0.35     # probability of adding signal-dependent shot noise
+
+  # -- Compression (simulates H.264/MJPEG video codec) --
+  video_compression:
+    probability: 0.50
+    quality_min: 45           # less aggressive compression
+    quality_max: 75
+
+  # Drone shadow: realistic blurred quadcopter shadow near the flag
+  drone_shadow:
+    probability: 0.12
+    opacity_min: 0.35
+    opacity_max: 0.60
+
+  # Final JPEG compression degradation (applied at save time)
+  compression:
+    probability: 0.55
+    quality_min: 70
+    quality_max: 90

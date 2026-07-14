@@ -1,0 +1,83 @@
+# =============================================================================
+# UAV Vision Pipeline — Configuration (ONNX Runtime / Raspberry Pi)
+# =============================================================================
+
+# --- Paths ---
+paths:
+  yolo_onnx: "../models/yolo_detect_model/best.onnx"
+  classifier_onnx: "../models/classifir_model/best_model.onnx"
+  class_mapping: "../models/classifir_model/class_mapping.json"
+  egypt_db: "./embeddings/egypt_db.npz"
+  camera_source: 0
+
+# --- YOLO Detector (ONNX Runtime) ---
+yolo:
+  confidence_threshold: 0.7
+  iou_threshold: 0.45
+  input_size: 640
+  max_detections: 3
+
+# --- Flag Classifier (ONNX Runtime, dual-output) ---
+classifier:
+  input_size: 224
+  top_k: 5
+  imagenet_mean: [0.485, 0.456, 0.406]
+  imagenet_std: [0.229, 0.224, 0.225]
+
+# --- OC-SORT Tracker ---
+tracker:
+  iou_threshold: 0.3
+  max_age: 30
+  min_hits: 1
+  delta_t: 3
+  inertia: 0.2
+  use_oru: true
+  use_ocm: true
+  use_ocr: true
+  ocr_iou_threshold: 0.2
+  max_center_dist: 150.0
+
+# --- Temporal Fusion (per-track) ---
+temporal_fusion:
+  ema_alpha: 0.3
+  history_length: 10
+  min_frames_for_decision: 3
+
+# --- Egypt Embedding Verification ---
+egypt_verification:
+  enabled: true
+  similarity_method: "weighted_top_k"
+  similarity_threshold: 0.75
+  top_k: 20
+  egypt_class_name: "Egypt"
+
+# --- Decision Engine ---
+decision:
+  confirm_threshold: 0.70
+  confirm_streak: 5
+  high_confidence_threshold: 0.60
+  low_confidence_threshold: 0.30
+  non_egypt_confirm_vote_fraction: 0.7
+
+# --- Egypt Database Builder (offline) ---
+egypt_database:
+  synthetic_count: 200
+  real_cam_dir: "../eg_cam_data/eg_cam_data"
+  generator_config: "../target_img/config.yaml"
+  flags_dir: "../target_img/assets/flag_textures"
+  backgrounds_dir: "../target_img/assets/backgrounds"
+
+# --- Visualizer ---
+visualizer:
+  enabled: true
+  output_video: "./debug_output.mp4"
+  video_fps: 15
+  font_scale: 0.5
+  line_thickness: 2
+  show_hud: true
+  show_event_log: true
+  event_log_max: 5
+  colors:
+    tracking: [0, 255, 255]       # Yellow
+    confirmed: [0, 255, 0]        # Green
+    lost: [128, 128, 128]         # Gray
